@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Chat room for "{{ course.title }}"{% endblock title %}
+
+{% block content %}
+<div id="chat"></div>
+<div id="chat-input">
+  <input type="text" id="chat-message-input">
+  <input type="submit" id="chat-message-submit" value="Send">
+</div>
+{% endblock content %}
+
+{% block domready %}
+  const url = `ws://${window.location.host}/ws/chat/room/{{ course.id }}/`;
+  const chatSocket = new WebSocket(url);
+
+  chatSocket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    const message = data.message;
+
+    const dateOptions = {hour: 'numeric', minute: 'numeric', hour12: true};
+    const datetime = new Date(data['datetime']).toLocaleString('en', dateOptions);
+    
+    const isMe = data.user === '{{ request.user }}';
+    const source = isMe ? 'me': 'other';
+    const name = isMe ? 'Me' : data.user;
+
+    const $chat = $('#chat');
+    $chat.append(`<div class='message ${source}'><strong>${name}</strong><span class="date">${datetime}</span><br>${message}</div>`);
+    $chat.scrollTop($chat[0].scrollHeight);
+  };
+
+  chatSocket.onclose = function(e) {
+    console.error('Chat socket closed unexpectedly');
+  };
+
+  const $input = $('#chat-message-input');
+  const $submit = $('#chat-message-submit');
+
+  $submit.click(function() {
+    const message = $input.val();
+    if(message) {
+      // send message in JSON format
+      chatSocket.send(JSON.stringify({'message': message}));
+
+      // clear input
+      $input.val('');
+
+      // return focus
+      $input.focus();
+      $input.keyup(function(e) {
+        if (e.which == 13) {
+          // submit with enter / return key
+          $submit.click();
+        }
+      })
+    }
+  })
+{% endblock domready %}

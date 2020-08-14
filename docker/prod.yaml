@@ -1,0 +1,52 @@
+version: "3"
+
+services:
+  db:
+    image: postgres:12-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - ./envs/production/.postgres
+
+  memcached:
+    image: memcached:1.6-alpine
+
+  nginx:
+    build:
+      context: ../.
+      dockerfile: ./docker/nginx/Dockerfile
+    ports:
+      - 1337:80
+    volumes:
+      - static_volume:/code/staticfiles
+      - media_volume:/code/media
+    depends_on:
+      - web
+
+  redis:
+    image: redis:6-alpine
+
+  web: &django
+    build:
+      context: ../.
+      dockerfile: ./docker/web/Dockerfile
+    command: ./docker/web/start.sh
+    env_file:
+      - ./envs/production/.django
+    volumes:
+      - static_volume:/code/staticfiles
+      - media_volume:/code/media
+    depends_on:
+      - db
+      - memcached
+      - redis
+
+  daphne:
+    <<: *django
+    command: pipenv run daphne -b 0.0.0.0 -p 8080 educa.asgi:application
+    volumes: []
+
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:
